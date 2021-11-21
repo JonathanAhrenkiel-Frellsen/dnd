@@ -7,27 +7,34 @@ public class GameManager : MonoBehaviour
     public GameObject Board;
     public GameObject Tile;
 
+    Vector3 board_start_pos;
+
     public float zoomSpeed = 0.0f;
 
     private bool first_press = true;
     private Vector3 pivot;
     private Vector3 start_pos;
 
-    private Vector3 start_drag_pos;
+    private Vector3 start_drag_pos = Vector3.zero;
+
+    private float tile_size = 10.0f;
+
+
+    private Vector3 prevCoordinate;
 
     // Start is called before the first frame update
     void Start()
     {
-        
+        board_start_pos = Board.transform.position;
     }
 
     // Update is called once per frame
     void Update()
     {
-        Vector3 scale = Board.transform.localScale + Vector3.one * Input.mouseScrollDelta.y * Time.deltaTime * zoomSpeed;
-        if (scale.magnitude > Vector3.one.magnitude / 10 && scale.magnitude < Vector3.one.magnitude * 5)
+        Vector3 zoom = Board.transform.position + Vector3.forward * Input.mouseScrollDelta.y * Time.deltaTime * zoomSpeed;
+        if (zoom.magnitude > board_start_pos.magnitude / 5 && zoom.magnitude < board_start_pos.magnitude * 5)
         {
-            Board.transform.localScale = scale;
+            Board.transform.position = zoom;
         }
 
         if (Input.GetMouseButton(2))
@@ -35,12 +42,24 @@ public class GameManager : MonoBehaviour
             if (first_press)
             {
                 first_press = false;
-                pivot = Input.mousePosition;
-                start_pos = Board.transform.position;
+
+                RaycastHit hit1;
+                var ray1 = Camera.main.ScreenPointToRay(Input.mousePosition);
+
+                if (Physics.Raycast(ray1, out hit1))
+                {
+                    pivot = hit1.point;
+                    start_pos = Board.transform.position;
+                }
             }
 
+            RaycastHit hit;
+            var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
 
-            Board.transform.position = start_pos + Input.mousePosition - pivot;
+            if (Physics.Raycast(ray, out hit))
+            {
+                Board.transform.position = start_pos + hit.point - pivot;
+            }
         } else
         {
             first_press = true;
@@ -49,35 +68,86 @@ public class GameManager : MonoBehaviour
         if (Input.GetKey(KeyCode.LeftShift) && Input.GetMouseButtonDown(0))
         {
             print("drag");
-            start_drag_pos = Input.mousePosition;
+            RaycastHit hit;
+            var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+
+            if (Physics.Raycast(ray, out hit))
+            {
+                start_drag_pos = hit.point;
+            }
         }
         else if (Input.GetKey(KeyCode.LeftShift) && Input.GetMouseButtonUp(0))
         {
             print("make area");
 
-            Vector3 end_drag_pos = Input.mousePosition;
+            RaycastHit hit;
+            var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
 
-            float scale_test = Board.transform.localScale.x;
-
-            print((start_drag_pos.y - end_drag_pos.y) / (100 * scale_test));
-            print((start_drag_pos.x - end_drag_pos.x) / (100 * scale_test));
-
-            for (int y = 0; y < Mathf.Round((start_drag_pos.y - end_drag_pos.y) / (100 * scale_test)) + 1; y++)
+            if (Physics.Raycast(ray, out hit))
             {
-                for (int x = 0; x < Mathf.Round((start_drag_pos.x - end_drag_pos.x) / (100 * scale_test)) + 1; x++)
+                Vector3 end_drag_pos = hit.point;
+
+                float y_start = 0;
+                float y_end = Mathf.Round(Mathf.Abs(start_drag_pos.y - end_drag_pos.y) / tile_size) + 1;
+
+                float x_start = 0;
+                float x_end = Mathf.Round(Mathf.Abs(start_drag_pos.x - end_drag_pos.x) / tile_size) + 1;
+
+                if (start_drag_pos.y < end_drag_pos.y && start_drag_pos.x < end_drag_pos.x)
                 {
-                    GameObject currentTile = Instantiate(Tile, Board.transform);
-                    currentTile.transform.position = new Vector3(Mathf.Round((start_drag_pos.x) / (100 * scale_test) - x) * 100 * scale_test, Mathf.Round((start_drag_pos.y) / (100 * scale_test) - y) * 100 * scale_test);
+                    y_start = -Mathf.Round(Mathf.Abs(start_drag_pos.y - end_drag_pos.y) / tile_size);
+                    y_end = 1;
+
+                    x_start = -Mathf.Round(Mathf.Abs(start_drag_pos.x - end_drag_pos.x) / tile_size);
+                    x_end = 1;
+                } else if (start_drag_pos.y > end_drag_pos.y && start_drag_pos.x < end_drag_pos.x)
+                {
+                    y_start = 0;
+                    y_end = Mathf.Round(Mathf.Abs(start_drag_pos.y - end_drag_pos.y) / tile_size) + 1;
+
+                    x_start = -Mathf.Round(Mathf.Abs(start_drag_pos.x - end_drag_pos.x) / tile_size);
+                    x_end = 1;
+                } else if (start_drag_pos.y < end_drag_pos.y && start_drag_pos.x > end_drag_pos.x)
+                {
+                    y_start = -Mathf.Round(Mathf.Abs(start_drag_pos.y - end_drag_pos.y) / tile_size);
+                    y_end = 1;
+
+                    x_start = 0;
+                    x_end = Mathf.Round(Mathf.Abs(start_drag_pos.x - end_drag_pos.x) / tile_size) + 1;
+                }
+
+                for (float y = y_start; y < y_end; y++)
+                {
+                    for (float x = x_start; x < x_end; x++)
+                    {
+                        GameObject currentTile = Instantiate(Tile, Board.transform);
+                        currentTile.transform.localPosition = new Vector3(Mathf.Round((start_drag_pos.x - Board.transform.position.x) / tile_size - x) * tile_size, Mathf.Round((start_drag_pos.y - Board.transform.position.y) / tile_size - y) * tile_size, 0);
+                    }
                 }
             }
-        }
-        else if (Input.GetMouseButtonDown(0))
-        {
-            GameObject currentTile = Instantiate(Tile, Board.transform);
 
-            float scale_test = Board.transform.localScale.x;
-            currentTile.transform.position = new Vector3(Mathf.Round(Input.mousePosition.x/(100* scale_test)) * 100 * scale_test, Mathf.Round(Input.mousePosition.y / (100* scale_test)) * 100 * scale_test);
-            //currentTile.transform.parent = Board.transform;
+            start_drag_pos = Vector3.zero;
+        }
+        else if (Input.GetMouseButton(0) && start_drag_pos == Vector3.zero)
+        {
+            RaycastHit hit;
+            var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+
+            if (Physics.Raycast(ray, out hit))
+            {
+                if (hit.transform.tag == "Background")
+                {
+                    Vector3 currentCoordinate = new Vector3(Mathf.Round((hit.point.x - Board.transform.position.x) / tile_size) * tile_size, Mathf.Round((hit.point.y - Board.transform.position.y) / tile_size) * tile_size, 0);
+                    if (currentCoordinate != prevCoordinate)
+                    {
+                        prevCoordinate = currentCoordinate;
+
+                        GameObject currentTile = Instantiate(Tile, Board.transform);
+
+                        currentTile.transform.localPosition = currentCoordinate;
+                    }
+                }
+            }
         }
     }
 }
